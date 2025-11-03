@@ -39,31 +39,15 @@ Distributions.value_support(d::PointMass) = d.value
 # ____________________________________________________________________________
 # Define tests
 
-
 ns = [10,20,30,40,50,75,100,125,150,175,200]
-nnull = 10000 # 100000
 nns = length(ns)
-
-# modified Shapiro-Francia (modified to handle a point null of N(0,1))
-SF(x) = (n=length(x); i_n=findfirst(n.==ns); (isnothing(i_n) ? error("No SF null for n=$n.") : mean(SF_nulls[:,i_n] .> SF_test_statistic(x))))
-SF_test_statistic(x) = (n=length(x); y = quantile.(Normal(),sort(x)); z = m_order.(1:n,n); sum((y - z).^2))
-
-# Blom's formula for approximation to the mean of the kth order statistic of a sample of n i.i.d. draws from a standard normal distribution
-m_order(k,n) = quantile(Normal(), (k - 0.375)/(n - 2*0.375 + 1))
-
-# Compute null distributions for SF
-nnull = 100 # TODO: used 10^5 for paper results
-SF_nulls = zeros(nnull,nns)
-for (i_n,n) in enumerate(ns)
-    SF_nulls[:,i_n] = [SF_test_statistic(rand(n)) for i=1:nnull]
-end
 
 # Cramer-von Mises test
 CM(x) = (n=length(x); i_n=findfirst(n.==ns); (isnothing(i_n) ? error("No CM null for n=$n.") : mean(CM_nulls[:,i_n] .> CM_test_statistic(x))))
 CM_test_statistic(x) = (n=length(x); k=(1:n); 1/(12*n) + sum(((2*k .- 1)/(2*n) - sort(x)).^2))
 
 # Compute null distributions for CM
-nnull = 100 # TODO: used 10^5 for paper results
+nnull = 10^5 # TODO: used 10^5 for paper results
 CM_nulls = zeros(nnull,nns)
 for (i_n,n) in enumerate(ns)
     CM_nulls[:,i_n] = [CM_test_statistic(rand(n)) for i=1:nnull]
@@ -130,7 +114,6 @@ groups = [d[4] for d in distributions]  # group number
 nds = length(distributions)
 
 
-
 # ____________________________________________________________________________
 # Plot densities
 
@@ -156,12 +139,12 @@ end
 # ____________________________________________________________________________
 # Compute power curves
 
-nreps = 10^2 # TODO: used 10^5 for paper results
+nreps = 10^5 # TODO: used 10^5 for paper results
 alpha = 0.05
 
 
 # Compute null distributions for LRTs
-nnull = 100 # TODO: used 10^5 for paper results
+nnull = 10^5 # TODO: used 10^5 for paper results
 lrt_nulls = zeros(nnull,nns,nds)
 for (i_n,n) in enumerate(ns)
     for d = 1:nds
@@ -191,7 +174,7 @@ fig_grid_regular, axs_grid_regular = PyPlot.subplots(2, 3, figsize=(24, 14), sha
 axs_grid_regular = vec(axs_grid_regular)
 grid_plot_idx_regular = 1
 
-# NEW: Grid for "Regular" Density Plots
+# Grid for "Regular" Density Plots
 fig_density_regular, axs_density_regular = PyPlot.subplots(2, 3, figsize=(24, 14), sharex=true, sharey=false)
 axs_density_regular = vec(axs_density_regular)
 density_grid_plot_idx_regular = 1
@@ -214,7 +197,7 @@ if isfile(power_csv)
     println("Power results loaded.")
 else
     println("No existing power results found. Initializing new results matrix...")
-    # (1) If it doesn't exist, initialize with our missing value marker
+    # if it doesn't exist, initialize with our missing value marker
     power = fill(MISSING_VAL, (nds, nns, length(Ts)+1))
     power_table = reshape(power, (nds*nns, length(Ts)+1))
     CSV.write(power_csv, Tables.table(power_table), writeheader=false)
@@ -241,7 +224,7 @@ for d = 1:nds
         N = round(Int, 10*n * log(n))
 
         for (i_T,T) in enumerate(Ts)
-            # (2) check if the cell is missing
+            # check if the cell is missing
             if isnan(power[d, i_n, i_T])
                 println("    Computing power for T = $(T) ...")
                 power[d, i_n, i_T] = mean([(T(x[rep]) .< alpha) for rep = 1:nreps])
@@ -260,7 +243,7 @@ for d = 1:nds
             println("    Skipping LRT, result already exists.")
         end
 
-        # (3) save progress at the end of the i_n loop, if new work was done
+        # save progress at the end of the i_n loop, if new work was done
         if work_done_in_this_loop
             println("    ... New results computed. Saving progress to $power_csv ...")
             power_table = reshape(power, (nds*nns, length(Ts)+1))
@@ -358,7 +341,7 @@ for d = 1:nds
         density_grid_plot_idx_failures += 1
     end
 
-    # --- NEW: Add Density Plot to REGULAR Grid ---
+    # --- Add Density Plot to REGULAR Grid ---
     if d in regular_indices && density_grid_plot_idx_regular <= length(axs_density_regular)
         ax_density = axs_density_regular[density_grid_plot_idx_regular]
         ax_density.hist(rand(dists[d], 200), bins=50, density=true, facecolor="lightblue", label="Histogram (n=200)")
@@ -436,7 +419,7 @@ if grid_plot_idx_regular > 1
     println("Power grid plot for regular cases saved to results/power_grid_regular.png")
 end
 
-# 4. NEW: Finalize Regular Density Grid
+# 4. Finalize Regular Density Grid
 if density_grid_plot_idx_regular > 1
     handles_density, labels_density = axs_density_regular[1].get_legend_handles_labels()
     # Thicken only the line object in the legend
@@ -452,12 +435,8 @@ if density_grid_plot_idx_regular > 1
     println("Density grid plot for regular cases saved to results/density_grid_regular.png")
 end
 
-#=======================================================
-
-=======================================================#
-
 # ____________________________________________________________________________
-# Simulate random distributions
+# power over families of distributions
 
 
 function plot_ranking(prank_probs, avg_rank, avg_power, T_labels, scenario_label, figpath)
@@ -579,8 +558,8 @@ scenario_labels = ["Nearly uniform", "Symmetric light-tailed", "Asymmetric light
 
 alpha = 0.05  # level
 n = 100  # number of data points in each data set
-nreps = 10  # number of data sets per distribution TODO: used 1000 for paper results
-ndists = 10 # number of random distributions to simulate TODO: used 1000 for paper results
+nreps = 1000  # number of data sets per distribution TODO: used 1000 for paper results
+ndists = 1000 # number of random distributions to simulate TODO: used 1000 for paper results
 
 N = round(Int, 10*n * log(n))
 
@@ -757,8 +736,6 @@ for (scenario, scenario_label) in zip(scenarios, scenario_labels)
             elseif scenario=="outliers_right"
                 x = [gen_outliers_right(n, op, outlier_ub) for rep = 1:nreps]
             elseif scenario=="random_bump"
-                # x = [rand(MixtureModel([Uniform(0,1), PointMass(spike_loc)], 
-                                #   [1-spike_weight,spike_weight]),n) for rep = 1:nreps]
                 x = [rand(MixtureModel([Uniform(0,1), Uniform(spike_loc-0.001,spike_loc+0.001)], 
                                 [1-spike_weight,spike_weight]),n) for rep = 1:nreps]
             elseif scenario=="random_gap"
